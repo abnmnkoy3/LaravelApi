@@ -14,7 +14,10 @@ use Illuminate\Contracts\Session\Session;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Reader\Exception;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+// use PhpOffice\PhpSpreadsheet\Reader\Xlsx;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
+
 /* CORS API */
 
 /* CORS API */
@@ -69,6 +72,16 @@ class ProductController extends Controller
             endif;
         endfor;
         return json_encode($query);
+    }
+
+    function thaiMonthToNumber($month)
+    {
+        $thaiMonths = [
+            'ม.ค.' => 1, 'ก.พ.' => 2, 'มี.ค.' => 3, 'เม.ย.' => 4, 'พ.ค.' => 5, 'มิ.ย.' => 6,
+            'ก.ค.' => 7, 'ส.ค.' => 8, 'ก.ย.' => 9, 'ต.ค.' => 10, 'พ.ย.' => 11, 'ธ.ค.' => 12,
+        ];
+
+        return $thaiMonths[$month];
     }
 
     /**
@@ -308,109 +321,435 @@ class ProductController extends Controller
         return $total;
     }
 
+
+    function convertThaiDateToGregorian($thaiDate)
+    {
+        // Split the Thai date by '/'
+        $parts = explode(' ', $thaiDate);
+        // var_dump($parts);
+        // Extract day, month, and year
+        $day = intval($parts[0]);
+        $month = $this->thaiMonthToNumber($parts[1]);
+        $year = intval('25' . $parts[2]) - 543; // Convert Buddhist era to Gregorian
+
+        // Create Carbon object
+        $carbonDate = Carbon::createFromDate($year, $month, $day);
+
+        // Format the date
+        return $carbonDate->format('Y-m-d');
+    }
+
     public function importData(Request $request)
     {
         $the_file = $request->file('file');
-        $type = $_POST['Type'];
-        // var_dump($the_file);
-        $spreadsheet = IOFactory::load($the_file->getRealPath());
-        $sheet        = $spreadsheet->getActiveSheet();
-        $row_limit    = $sheet->getHighestDataRow();
-        $column_limit = $sheet->getHighestDataColumn();
-        $row_range    = range(2, $row_limit);
-        // $column_range = range('F', $column_limit);
-        $startcount = 2;
+        $type_post = $_POST['Type'];
+        $product_type = $_POST['product_type'];
+
         $data = array();
 
-        if ($type != 'trademark') :
+        if ($product_type === 'TM') :
+            //spreadsheet
+            $spreadsheet = IOFactory::load($the_file->getRealPath());
+            $sheet        = $spreadsheet->getActiveSheet();
+            $row_limit    = $sheet->getHighestDataRow();
+            $column_limit = $sheet->getHighestDataColumn();
+            $row_range    = range(5, $row_limit);
+            $startcount = 5;
+
+            $drawings = $sheet->getDrawingCollection();
+
+            foreach ($drawings as $drawing) :
+                $coordinates = $drawing->getCoordinates();
+                $drawing_path = $drawing->getPath();
+                $drawing_name = $drawing->getName();
+                $extension = pathinfo($drawing_path, PATHINFO_EXTENSION);
+
+                $img_url = "public/uploads/image_law/{$product_type}/{$drawing_name}";
+                $img_path = storage_path($img_url);
+
+                $contents = file_get_contents($drawing_path);
+                Storage::disk('local')->put($img_url, file_get_contents($drawing_path));
+                // file_put_contents($img_path, $contents);
+                if (substr($coordinates, 0, 1) === 'B') :
+                    $dataDrawing[] = [
+                        'cell' => substr($coordinates, 0, 1),
+                        'row' => substr($coordinates, 1),
+                        'drawing_name' => $drawing_name,
+                        'img_path' => $img_path
+                    ];
+                endif;
+            // return json_encode($img_path);
+            endforeach;
+            //spreadsheet
+            $Num = 0;
+            $patentnum = '';
+            $reqnum = '';
+            $datereq = '';
+            $category = '';
+            $product_name = '';
+            $renewdate = '';
+            $issuedate = '';
+            $expiresdate = '';
+            $remark = '';
+            $numberrow = 0;
             foreach ($row_range as $row) {
-                ///
-                $datedefault_date_req = $sheet->getStyle('E' . $row)
-                    ->getNumberFormat()
-                    ->setFormatCode(\PhpOffice\PhpSpreadsheet\Style\NumberFormat::FORMAT_DATE_YYYYMMDDSLASH);
-                $date_req_after = $sheet->getCell('E' . $row)->getFormattedValue();
-                ///
 
-                ///
-                $datedefault_regis_date = $sheet->getStyle('I' . $row)
-                    ->getNumberFormat()
-                    ->setFormatCode(\PhpOffice\PhpSpreadsheet\Style\NumberFormat::FORMAT_DATE_YYYYMMDDSLASH);
-                $regis_date_after = $sheet->getCell('I' . $row)->getFormattedValue();
-                ///
-
-                ///
-                $datedefault_patent_expire = $sheet->getStyle('J' . $row)
-                    ->getNumberFormat()
-                    ->setFormatCode(\PhpOffice\PhpSpreadsheet\Style\NumberFormat::FORMAT_DATE_YYYYMMDDSLASH);
-                $patent_expire_after = $sheet->getCell('J' . $row)->getFormattedValue();
-                ///
-
-                $data[] = [
-                    'name' => $sheet->getCell('B' . $row)->getValue(),
-                    'name_create' => 'ทดสอบ',
-                    'type' => $type,
-                    'img' => 'noimage.jpg',
-                    'num_req' => $sheet->getCell('D' . $row)->getValue(),
-                    'date_req' => $date_req_after,
-                    'num_patent' => $sheet->getCell('F' . $row)->getValue(),
-                    'status_now' => $sheet->getCell('G' . $row)->getValue(),
-                    'status_next' => $sheet->getCell('H' . $row)->getValue(),
-                    'status' => '1',
-                    'regis_date' => $regis_date_after,
-                    'patent_expire' => $patent_expire_after,
-                ];
+                $patentnum              .= $sheet->getCell('E' . $row)->getValue();
+                $reqnum            .= $sheet->getCell('F' . $row)->getValue();
+                $category               .= $sheet->getCell('H' . $row)->getValue();
+                $product_name            .=  $sheet->getCell('I' . $row)->getValue();
+                if (strlen($sheet->getCell('G' . $row)->getFormattedValue()) > 0) :
+                    $datereq       .= $sheet->getCell('G' . $row)->getFormattedValue();
+                endif;
+                if (strlen($sheet->getCell('J' . $row)->getFormattedValue()) > 0) :
+                    $renewdate   .= $sheet->getCell('J' . $row)->getFormattedValue();
+                endif;
+                if (strlen($sheet->getCell('K' . $row)->getFormattedValue()) > 0) :
+                    $issuedate   .= $sheet->getCell('K' . $row)->getFormattedValue();
+                endif;
+                if (strlen($sheet->getCell('L' . $row)->getFormattedValue()) > 0) :
+                    $expiresdate      .= $sheet->getCell('L' . $row)->getFormattedValue();
+                endif;
+                $remark                 .= $sheet->getCell('M' . $row)->getValue();
+                $Num++;
+                if ($Num === 5) :
+                    $data[] = [
+                        'img' => $dataDrawing[$numberrow]['drawing_name'],
+                        // 'img' => '',
+                        'patentnum' => $patentnum,
+                        'reqnum' => $reqnum,
+                        'datereq' => $datereq,
+                        'category' => $category,
+                        'product_name' => $product_name,
+                        'renewdate' => $renewdate,
+                        'issuedate' => $issuedate,
+                        'expiresdate' => $expiresdate,
+                        'remark' => $remark,
+                        'type' => $product_type,
+                    ];
+                    $Num = 0;
+                    $patentnum = '';
+                    $reqnum = '';
+                    $category = '';
+                    $product_name = '';
+                    $datereq = '';
+                    $renewdate = '';
+                    $issuedate = '';
+                    $expiresdate = '';
+                    $remark = '';
+                    $numberrow++;
+                endif;
                 $startcount++;
             }
-        else :
-            foreach ($row_range as $row) {
-                ///
-                $datedefault_regis_date = $sheet->getStyle('G' . $row)
-                    ->getNumberFormat()
-                    ->setFormatCode(\PhpOffice\PhpSpreadsheet\Style\NumberFormat::FORMAT_DATE_YYYYMMDDSLASH);
-                $regis_date_after = $sheet->getCell('G' . $row)->getFormattedValue();
-                ///
-                ///
-                $datedefault_lastrenew_date = $sheet->getStyle('J' . $row)
-                    ->getNumberFormat()
-                    ->setFormatCode(\PhpOffice\PhpSpreadsheet\Style\NumberFormat::FORMAT_DATE_YYYYMMDDSLASH);
-                $lastrenew_date_after = $sheet->getCell('J' . $row)->getFormattedValue();
-                ///
-                ///
-                $datedefault_nextrenew_date = $sheet->getStyle('K' . $row)
-                    ->getNumberFormat()
-                    ->setFormatCode(\PhpOffice\PhpSpreadsheet\Style\NumberFormat::FORMAT_DATE_YYYYMMDDSLASH);
-                $nextrenew_date_after = $sheet->getCell('K' . $row)->getFormattedValue();
-                ///
-                ///
-                $datedefault_expire_date = $sheet->getStyle('L' . $row)
-                    ->getNumberFormat()
-                    ->setFormatCode(\PhpOffice\PhpSpreadsheet\Style\NumberFormat::FORMAT_DATE_YYYYMMDDSLASH);
-                $expire_date_after = $sheet->getCell('L' . $row)->getFormattedValue();
-                ///
+        elseif ($product_type === 'PT') :
+            $spreadsheet = IOFactory::load($the_file->getRealPath());
+            $sheet        = $spreadsheet->getActiveSheet();
+            $row_limit    = $sheet->getHighestDataRow();
+            $column_limit = $sheet->getHighestDataColumn();
+            $row_range    = range(5, $row_limit);
+            $startcount = 5;
 
-                $data[] = [
-                    'img' => 'noimage.jpg',
-                    'type' => $type,
-                    'regis_num' => $sheet->getCell('E' . $row)->getValue(),
-                    'request_num' => $sheet->getCell('F' . $row)->getValue(),
-                    // 'name_create' => 'ทดสอบ',
-                    'regis_date' => $regis_date_after,
-                    'type_num' => $sheet->getCell('H' . $row)->getValue(),
-                    'description' => $sheet->getCell('I' . $row)->getValue(),
-                    'lastrenew_date' => $lastrenew_date_after,
-                    'nextrenew_date' => $nextrenew_date_after,
-                    'expire_date' => $expire_date_after,
-                    'remark' => $sheet->getCell('M' . $row)->getValue(),
-                ];
+            $drawings = $sheet->getDrawingCollection();
+
+            foreach ($drawings as $drawing) :
+                $coordinates = $drawing->getCoordinates();
+                $drawing_path = $drawing->getPath();
+                $drawing_name = $drawing->getName();
+                $extension = pathinfo($drawing_path, PATHINFO_EXTENSION);
+
+                $img_url = "public/uploads/image_law/{$product_type}/{$drawing_name}";
+                $img_path = storage_path($img_url);
+
+                $contents = file_get_contents($drawing_path);
+                Storage::disk('local')->put($img_url, file_get_contents($drawing_path));
+                // file_put_contents($img_path, $contents);
+                if (substr($coordinates, 0, 1) === 'C') :
+                    $dataDrawing[] = [
+                        'cell' => substr($coordinates, 0, 1),
+                        'row' => substr($coordinates, 1),
+                        'drawing_name' => $drawing_name,
+                        'img_path' => $img_path
+                    ];
+                endif;
+            // return json_encode($img_path);
+            endforeach;
+            //spreadsheet
+            $Num = 0;
+            $patentnum = '';
+            $reqnum = '';
+            $datereq = '';
+            $category = '';
+            $product_name = '';
+            $renewdate = '';
+            $issuedate = '';
+            $expiresdate = '';
+            $remark = '';
+            $statusnow = '';
+            $statusnext = '';
+            $numberrow = 0;
+            foreach ($row_range as $row) {
+
+                $patentnum              .= $sheet->getCell('F' . $row)->getValue();
+                $reqnum            .= $sheet->getCell('D' . $row)->getValue();
+                $statusnow            .= $sheet->getCell('G' . $row)->getValue();
+                $statusnext  .= $sheet->getCell('H' . $row)->getValue();
+                // $category               .= $sheet->getCell('H' . $row)->getValue();
+                $product_name            .=  $sheet->getCell('B' . $row)->getValue();
+                if (strlen($sheet->getCell('E' . $row)->getFormattedValue()) > 0) :
+                    $datereq       .= $sheet->getCell('E' . $row)->getFormattedValue();
+                endif;
+                // if (strlen($sheet->getCell('J' . $row)->getFormattedValue()) > 0) :
+                //     $renewdate   .= $sheet->getCell('J' . $row)->getFormattedValue();
+                // endif;
+                if (strlen($sheet->getCell('I' . $row)->getFormattedValue()) > 0) :
+                    $issuedate   .= $sheet->getCell('I' . $row)->getFormattedValue();
+                endif;
+                if (strlen($sheet->getCell('J' . $row)->getFormattedValue()) > 0) :
+                    $expiresdate      .= $sheet->getCell('J' . $row)->getFormattedValue();
+                endif;
+                // $remark                 .= $sheet->getCell('M' . $row)->getValue();
+                $Num++;
+                if ($Num === 4) :
+                    $data[] = [
+                        'img' => $dataDrawing[$numberrow]['drawing_name'],
+                        // 'img' => '',
+                        'patentnum' => $patentnum,
+                        'reqnum' => $reqnum,
+                        'datereq' => $datereq,
+                        'category' => $category,
+                        'product_name' => $product_name,
+                        'renewdate' => $renewdate,
+                        'issuedate' => $issuedate,
+                        'statusnow' => $statusnow,
+                        'statusnext' => $statusnext,
+                        'expiresdate' => $expiresdate,
+                        'remark' => $remark,
+                        'type' => $product_type,
+                    ];
+                    $Num = 0;
+                    $patentnum = '';
+                    $reqnum = '';
+                    $category = '';
+                    $product_name = '';
+                    $datereq = '';
+                    $renewdate = '';
+                    $issuedate = '';
+                    $statusnow = '';
+                    $statusnext = '';
+                    $expiresdate = '';
+                    $remark = '';
+                    $numberrow++;
+                endif;
+                $startcount++;
+            }
+        elseif ($product_type === 'PT2') :
+            $spreadsheet = IOFactory::load($the_file->getRealPath());
+            $sheet        = $spreadsheet->getActiveSheet();
+            $row_limit    = $sheet->getHighestDataRow();
+            $column_limit = $sheet->getHighestDataColumn();
+            $row_range    = range(5, $row_limit);
+            $startcount = 5;
+
+            $drawings = $sheet->getDrawingCollection();
+
+            foreach ($drawings as $drawing) :
+                $coordinates = $drawing->getCoordinates();
+                $drawing_path = $drawing->getPath();
+                $drawing_name = $drawing->getName();
+                $extension = pathinfo($drawing_path, PATHINFO_EXTENSION);
+
+                $img_url = "public/uploads/image_law/{$product_type}/{$drawing_name}";
+                $img_path = storage_path($img_url);
+
+                $contents = file_get_contents($drawing_path);
+                Storage::disk('local')->put($img_url, file_get_contents($drawing_path));
+                // file_put_contents($img_path, $contents);
+                if (substr($coordinates, 0, 1) === 'C') :
+                    $dataDrawing[] = [
+                        'cell' => substr($coordinates, 0, 1),
+                        'row' => substr($coordinates, 1),
+                        'drawing_name' => $drawing_name,
+                        'img_path' => $img_path
+                    ];
+                endif;
+            // return json_encode($img_path);
+            endforeach;
+            //spreadsheet
+            $Num = 0;
+            $patentnum = '';
+            $reqnum = '';
+            $datereq = '';
+            $category = '';
+            $product_name = '';
+            $renewdate = '';
+            $issuedate = '';
+            $expiresdate = '';
+            $remark = '';
+            $statusnow = '';
+            $statusnext = '';
+            $numberrow = 0;
+            foreach ($row_range as $row) {
+
+                $patentnum              .= $sheet->getCell('F' . $row)->getValue();
+                $reqnum            .= $sheet->getCell('D' . $row)->getValue();
+                $statusnow            .= $sheet->getCell('G' . $row)->getValue();
+                $statusnext  .= $sheet->getCell('H' . $row)->getValue();
+                // $category               .= $sheet->getCell('H' . $row)->getValue();
+                $product_name            .=  $sheet->getCell('B' . $row)->getValue();
+                if (strlen($sheet->getCell('E' . $row)->getFormattedValue()) > 0) :
+                    $datereq       .= $sheet->getCell('E' . $row)->getFormattedValue();
+                endif;
+                // if (strlen($sheet->getCell('J' . $row)->getFormattedValue()) > 0) :
+                //     $renewdate   .= $sheet->getCell('J' . $row)->getFormattedValue();
+                // endif;
+                if (strlen($sheet->getCell('I' . $row)->getFormattedValue()) > 0) :
+                    $issuedate   .= $sheet->getCell('I' . $row)->getFormattedValue();
+                endif;
+                if (strlen($sheet->getCell('J' . $row)->getFormattedValue()) > 0) :
+                    $expiresdate      .= $sheet->getCell('J' . $row)->getFormattedValue();
+                endif;
+                // $remark                 .= $sheet->getCell('M' . $row)->getValue();
+                $Num++;
+                if ($Num === 4) :
+                    $data[] = [
+                        'img' => $dataDrawing[$numberrow]['drawing_name'],
+                        // 'img' => '',
+                        'patentnum' => $patentnum,
+                        'reqnum' => $reqnum,
+                        'datereq' => $datereq,
+                        'category' => $category,
+                        'product_name' => $product_name,
+                        'renewdate' => $renewdate,
+                        'issuedate' => $issuedate,
+                        'statusnow' => $statusnow,
+                        'statusnext' => $statusnext,
+                        'expiresdate' => $expiresdate,
+                        'remark' => $remark,
+                        'type' => $product_type,
+                    ];
+                    $Num = 0;
+                    $patentnum = '';
+                    $reqnum = '';
+                    $category = '';
+                    $product_name = '';
+                    $datereq = '';
+                    $renewdate = '';
+                    $issuedate = '';
+                    $statusnow = '';
+                    $statusnext = '';
+                    $expiresdate = '';
+                    $remark = '';
+                    $numberrow++;
+                endif;
+                $startcount++;
+            }
+        elseif ($product_type === 'PT3') :
+            $spreadsheet = IOFactory::load($the_file->getRealPath());
+            $sheet        = $spreadsheet->getActiveSheet();
+            $row_limit    = $sheet->getHighestDataRow();
+            $column_limit = $sheet->getHighestDataColumn();
+            $row_range    = range(5, $row_limit);
+            $startcount = 5;
+
+            $drawings = $sheet->getDrawingCollection();
+
+            foreach ($drawings as $drawing) :
+                $coordinates = $drawing->getCoordinates();
+                $drawing_path = $drawing->getPath();
+                $drawing_name = $drawing->getName();
+                $extension = pathinfo($drawing_path, PATHINFO_EXTENSION);
+
+                $img_url = "public/uploads/image_law/{$product_type}/{$drawing_name}";
+                $img_path = storage_path($img_url);
+
+                $contents = file_get_contents($drawing_path);
+                Storage::disk('local')->put($img_url, file_get_contents($drawing_path));
+                // file_put_contents($img_path, $contents);
+                if (substr($coordinates, 0, 1) === 'C') :
+                    $dataDrawing[] = [
+                        'cell' => substr($coordinates, 0, 1),
+                        'row' => substr($coordinates, 1),
+                        'drawing_name' => $drawing_name,
+                        'img_path' => $img_path
+                    ];
+                endif;
+            // return json_encode($img_path);
+            endforeach;
+            //spreadsheet
+            $Num = 0;
+            $patentnum = '';
+            $reqnum = '';
+            $datereq = '';
+            $category = '';
+            $product_name = '';
+            $renewdate = '';
+            $issuedate = '';
+            $expiresdate = '';
+            $remark = '';
+            $statusnow = '';
+            $statusnext = '';
+            $numberrow = 0;
+            foreach ($row_range as $row) {
+
+                $patentnum              .= $sheet->getCell('F' . $row)->getValue();
+                $reqnum            .= $sheet->getCell('D' . $row)->getValue();
+                $statusnow            .= $sheet->getCell('G' . $row)->getValue();
+                $statusnext  .= $sheet->getCell('H' . $row)->getValue();
+                // $category               .= $sheet->getCell('H' . $row)->getValue();
+                $product_name            .=  $sheet->getCell('B' . $row)->getValue();
+                if (strlen($sheet->getCell('E' . $row)->getFormattedValue()) > 0) :
+                    $datereq       .= $sheet->getCell('E' . $row)->getFormattedValue();
+                endif;
+                // if (strlen($sheet->getCell('J' . $row)->getFormattedValue()) > 0) :
+                //     $renewdate   .= $sheet->getCell('J' . $row)->getFormattedValue();
+                // endif;
+                if (strlen($sheet->getCell('I' . $row)->getFormattedValue()) > 0) :
+                    $issuedate   .= $sheet->getCell('I' . $row)->getFormattedValue();
+                endif;
+                if (strlen($sheet->getCell('J' . $row)->getFormattedValue()) > 0) :
+                    $expiresdate      .= $sheet->getCell('J' . $row)->getFormattedValue();
+                endif;
+                // $remark                 .= $sheet->getCell('M' . $row)->getValue();
+                $Num++;
+                if ($Num === 4) :
+                    $data[] = [
+                        'img' => $dataDrawing[$numberrow]['drawing_name'],
+                        // 'img' => '',
+                        'patentnum' => $patentnum,
+                        'reqnum' => $reqnum,
+                        'datereq' => $datereq,
+                        'category' => $category,
+                        'product_name' => $product_name,
+                        'renewdate' => $renewdate,
+                        'issuedate' => $issuedate,
+                        'statusnow' => $statusnow,
+                        'statusnext' => $statusnext,
+                        'expiresdate' => $expiresdate,
+                        'remark' => $remark,
+                        'type' => $product_type,
+                    ];
+                    $Num = 0;
+                    $patentnum = '';
+                    $reqnum = '';
+                    $category = '';
+                    $product_name = '';
+                    $datereq = '';
+                    $renewdate = '';
+                    $issuedate = '';
+                    $statusnow = '';
+                    $statusnext = '';
+                    $expiresdate = '';
+                    $remark = '';
+                    $numberrow++;
+                endif;
                 $startcount++;
             }
         endif;
-        if ($type != 'trademark') :
-            DB::connection('mysql_law')->table('petty_patent')->insert($data);
-        else :
-            DB::connection('mysql_law')->table('trade_mark')->insert($data);
+        // return json_encode($data);
+        if ($product_type == 'TM' || $product_type == 'PT' || $product_type == 'PT2' || $product_type == 'PT3') :
+            DB::connection('mysql_ip_demo')->table('data_law')->insert($data);
         endif;
-        return json_encode(['message' => 'successful']);
+        return json_encode(['message => successful']);
     }
 
     public function getfileOther()
