@@ -10,6 +10,7 @@ use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Ip_api;
+use App\Http\Controllers\Ip_select;
 use App\Http\Controllers\Law_api;
 /*
 |--------------------------------------------------------------------------
@@ -76,31 +77,31 @@ Route::get('/GetDataProduct', [Ip_api::class, 'GetDataProduct']);
 
 Route::post('/CreateData', [Ip_api::class, 'CreateData']);
 Route::get('/get_ip_type', [Ip_api::class, 'get_ip_type']);
-Route::get('/GetData', [Ip_api::class, 'GetData']);
-Route::get('/GetDataDoc', [Ip_api::class, 'GetDataDoc']);
-Route::get('/GetDataEdit', [Ip_api::class, 'GetDataEdit']);
-Route::get('/GetDataConsider', [Ip_api::class, 'GetDataConsider']);
+Route::get('/GetData', [Ip_select::class, 'GetData']);
+Route::get('/GetDataDoc', [Ip_select::class, 'GetDataDoc']);
+Route::get('/GetDataEdit', [Ip_select::class, 'GetDataEdit']);
+Route::get('/GetDataConsider', [Ip_select::class, 'GetDataConsider']);
 Route::post('/uploadFile_Ip_Demp', [Ip_api::class, 'uploadFile_Ip_Demp']);
 Route::post('/DataManage', [Ip_api::class, 'DataManage']);
 Route::post('/ManageDoc', [Ip_api::class, 'ManageDoc']);
 Route::post('/uploadFile_Attach', [Ip_api::class, 'uploadFile_Attach']);
-Route::post('/SearchPOA', [Ip_api::class, 'SearchPOA']);
+Route::post('/SearchPOA', [Ip_select::class, 'SearchPOA']);
 Route::post('/ConsiderApproveFile', [Ip_api::class, 'ConsiderApproveFile']);
 Route::post('/ManageConsider', [Ip_api::class, 'ManageConsider']);
-Route::get('/GetDataLaw', [Ip_api::class, 'GetDataLaw']);
+Route::get('/GetDataLaw', [Ip_select::class, 'GetDataLaw']);
 Route::get('/DownloadForm/{name}', [Ip_api::class, 'DownloadForm']);
-Route::post('/getFile_req', [Ip_api::class, 'getFile_req']);
-Route::post('/getFile_req_document', [Ip_api::class, 'getFile_req_document']);
-Route::post('/getFile_Law', [Ip_api::class, 'getFile_Law']);
-Route::post('/getFileWorkId', [Ip_api::class, 'getFileWorkId']);
+Route::post('/getFile_req', [Ip_select::class, 'getFile_req']);
+Route::post('/getFile_req_document', [Ip_select::class, 'getFile_req_document']);
+Route::post('/getFile_Law', [Ip_select::class, 'getFile_Law']);
+Route::post('/getFileWorkId', [Ip_select::class, 'getFileWorkId']);
 Route::post('/Submit_Document', [Ip_api::class, 'Submit_Document']);
 Route::post('/Submit_Form', [Ip_api::class, 'Submit_Form']);
 Route::post('/InsertReqNum', [Ip_api::class, 'InsertReqNum']);
 Route::post('/SendDocument', [Ip_api::class, 'SendDocument']);
 Route::post('/ApproveFile_Dialog', [Ip_api::class, 'ApproveFile_Dialog']);
 
-Route::get('/getProductGroup', [Ip_api::class, 'getProductGroup']);
-Route::post('/getsubGroupIntellectual', [Ip_api::class, 'getsubGroupIntellectual']);
+Route::get('/getProductGroup', [Ip_select::class, 'getProductGroup']);
+Route::post('/getsubGroupIntellectual', [Ip_select::class, 'getsubGroupIntellectual']);
 Route::get('/ExportExcel/{type}', [Ip_api::class, 'ExportExcel']);
 Route::post('/Login', [Ip_api::class, 'Login']);
 
@@ -108,16 +109,16 @@ Route::post('/GetDataReportLaw', [Law_api::class, 'GetDataReportLaw']);
 Route::post('/editFile_attach', [Law_api::class, 'editFile_attach']);
 Route::post('/test_fetcharray', [Law_api::class, 'test_fetcharray']);
 Route::post('/updateDataLaw', [Law_api::class, 'updateDataLaw']);
-Route::post('/getmasterDoc', [IP_api::class, 'getmasterDoc']);
+Route::post('/getmasterDoc', [Ip_select::class, 'getmasterDoc']);
 Route::post('/CreateDataMore', [IP_api::class, 'CreateDataMore']);
 Route::post('/setFileFromEdit', [IP_api::class, 'setFileFromEdit']);
 Route::post('/approveEdit', [IP_api::class, 'approveEdit']);
 
 Route::post('/updateFormEdit', [IP_api::class, 'updateFormEdit']);
-Route::post('/getFileDataSelect', [IP_api::class, 'getFileDataSelect']);
+Route::post('/getFileDataSelect', [ip_select::class, 'getFileDataSelect']);
 Route::post('/approveEditLaw', [IP_api::class, 'approveEditLaw']);
-Route::post('/GetDataDocDialog', [IP_api::class, 'GetDataDocDialog']);
-Route::post('/getDataFileShow', [IP_api::class, 'getDataFileShow']);
+Route::post('/GetDataDocDialog', [Ip_select::class, 'GetDataDocDialog']);
+Route::post('/getDataFileShow', [Ip_select::class, 'getDataFileShow']);
 
 Route::post('/submitfile_to_consider', [IP_api::class, 'submitfile_to_consider']);
 //IP API //
